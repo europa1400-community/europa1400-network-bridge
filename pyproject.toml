@@ -13,3 +13,7 @@ license = { file = "LICENSE" }
 build = [
     "pyinstaller>=6.13.0",
 ]
+dev = [
+    "mypy>=1.15.0",
+    "ruff>=0.11.6",
+]
