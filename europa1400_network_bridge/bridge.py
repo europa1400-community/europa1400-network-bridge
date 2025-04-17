@@ -33,7 +33,7 @@ class NetworkBridge:
 
         addrs = ", ".join(str(sock.getsockname()) for sock in server.sockets)
         logging.info(
-            f"Serving on {addrs}, forwarding to {self.config.target}:{target_port}"
+            f"Bridge started. Listening on {addrs}, forwarding to {self.config.target}:{target_port}"
         )
 
         try:
@@ -50,19 +50,25 @@ class NetworkBridge:
             target_reader, target_writer = await asyncio.open_connection(
                 self.config.target, target_port
             )
-            logging.info(f"New connection: {writer.get_extra_info('peername')}")
+            logging.info(
+                f"New incoming connection from {writer.get_extra_info('peername')} -> forwarding to {self.config.target}:{target_port}"
+            )
 
             async def gilde_to_bridge():
                 try:
                     while True:
                         payload = await reader.read(1048574)
                         if not payload:
+                            logging.info("gilde_to_bridge: connection closed by peer")
                             break
+                        logging.debug(
+                            f"gilde_to_bridge: forwarding {len(payload)} bytes"
+                        )
                         length = len(payload).to_bytes(8, byteorder="big")
                         target_writer.write(length + payload)
                         await target_writer.drain()
                 except Exception as e:
-                    logging.info(f"gilde_to_bridge closed: {e}")
+                    logging.info(f"gilde_to_bridge closed with error: {e}")
 
             async def bridge_to_gilde():
                 try:
@@ -70,10 +76,11 @@ class NetworkBridge:
                         length_bytes = await target_reader.readexactly(8)
                         length = int.from_bytes(length_bytes, byteorder="big")
                         payload = await target_reader.readexactly(length)
+                        logging.debug(f"bridge_to_gilde: forwarding {length} bytes")
                         writer.write(payload)
                         await writer.drain()
                 except Exception as e:
-                    logging.info(f"bridge_to_gilde closed: {e}")
+                    logging.info(f"bridge_to_gilde closed with error: {e}")
 
             if self.config.is_server:
                 await asyncio.gather(bridge_to_gilde(), gilde_to_bridge())
@@ -81,7 +88,8 @@ class NetworkBridge:
                 await asyncio.gather(gilde_to_bridge(), bridge_to_gilde())
 
         except Exception as e:
-            logging.error(f"Connection error: {e}")
+            logging.error(f"Connection setup error: {e}")
         finally:
+            logging.info("Closing connection")
             writer.close()
             await writer.wait_closed()
