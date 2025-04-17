@@ -128,8 +128,12 @@ jobs:
           enable-cache: true
           cache-suffix: uv-${{ runner.os }}-3.13
 
-      - name: Install PyInstaller
-        run: uv pip install pyinstaller typer
+      - name: Install dependecies
+        run: uv sync --all-groups
+
+      - name: Set package version
+        run: |
+          uvx --from=toml-cli toml set --toml-path=pyproject.toml project.version ${{ needs.version.outputs.version }}
 
       - name: Build executables
         run: pyinstaller europa1400-network-bridge.spec
