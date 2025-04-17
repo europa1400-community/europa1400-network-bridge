@@ -136,7 +136,7 @@ jobs:
           uvx --from=toml-cli toml set --toml-path=pyproject.toml project.version ${{ needs.version.outputs.version }}
 
       - name: Build executables
-        run: pyinstaller europa1400-network-bridge.spec
+        run: uv run pyinstaller europa1400-network-bridge.spec
 
       - name: Upload CLI+GUI executable
         uses: actions/upload-release-asset@v1
