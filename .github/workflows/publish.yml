@@ -93,8 +93,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PAT }}
         with:
           upload_url: ${{ needs.version.outputs.upload_url }}
-          asset_path: ./dist/eq3btsmart-${{ needs.version.outputs.version }}.tar.gz
-          asset_name: eq3btsmart-${{ needs.version.outputs.version }}.tar.gz
+          asset_path: ./dist/europa1400-network-bridge-${{ needs.version.outputs.version }}.tar.gz
+          asset_name: europa1400-network-bridge-${{ needs.version.outputs.version }}.tar.gz
           asset_content_type: application/gzip
 
       - name: Upload wheel to release
@@ -103,8 +103,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PAT }}
         with:
           upload_url: ${{ needs.version.outputs.upload_url }}
-          asset_path: ./dist/eq3btsmart-${{ needs.version.outputs.version }}-py3-none-any.whl
-          asset_name: eq3btsmart-${{ needs.version.outputs.version }}-py3-none-any.whl
+          asset_path: ./dist/europa1400-network-bridge-${{ needs.version.outputs.version }}-py3-none-any.whl
+          asset_name: europa1400-network-bridge-${{ needs.version.outputs.version }}-py3-none-any.whl
           asset_content_type: application/zip
 
   executables:
