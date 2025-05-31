@@ -2,6 +2,7 @@ import asyncio
 import logging
 import socket
 import struct
+import time
 from asyncio import StreamReader, StreamWriter
 from typing import Tuple
 
@@ -71,6 +72,7 @@ class NetworkBridge:
             async def proxmox_style_pipe(
                 src: StreamReader, dst: StreamWriter, label: str
             ):
+                last = time.time()
                 try:
                     while True:
                         data = await src.read(1024)
@@ -78,15 +80,18 @@ class NetworkBridge:
                             logging.info(f"{label}: EOF from source")
                             break
 
-                        # Split data into small chunks (like Proxmox TCP stack might)
+                        now = time.time()
+                        logging.debug(
+                            f"{label}: received {len(data)} bytes, {now - last:.4f}s since last read"
+                        )
+                        last = now
+
+                        # Send in 128-byte chunks, drain once after whole read
                         for i in range(0, len(data), 128):
                             chunk = data[i : i + 128]
                             dst.write(chunk)
-                            await dst.drain()
-                            await asyncio.sleep(
-                                0.001
-                            )  # Delay to simulate real PSH timing
-                            logging.debug(f"{label}: forwarded {len(chunk)} bytes")
+                        await dst.drain()
+                        await asyncio.sleep(0.0001)
                 except Exception as e:
                     logging.warning(f"{label}: exception: {e}")
                 finally:
@@ -110,14 +115,8 @@ class NetworkBridge:
     def _apply_socket_tweaks(self, writer: StreamWriter) -> None:
         sock = writer.get_extra_info("socket")
         if sock:
-            # Disable Nagle
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
-            # Set SO_LINGER to 2s to flush remaining data
-            linger_struct = struct.pack("ii", 1, 2)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, linger_struct)
-
-            # Enable keepalive
+            linger = struct.pack("ii", 1, 2)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, linger)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-
             logging.debug(f"Socket tweaks applied to {sock.getsockname()}")
