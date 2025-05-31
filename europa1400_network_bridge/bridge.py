@@ -72,19 +72,23 @@ class NetworkBridge:
                     while True:
                         data = await src.read(8192)
                         if not data:
-                            logging.info(f"{label}: EOF")
+                            logging.info(f"{label}: EOF from source")
                             break
+                        logging.debug(f"{label}: forwarding {len(data)} bytes")
                         dst.write(data)
                         await dst.drain()
                 except Exception as e:
-                    logging.warning(f"{label}: error: {e}")
+                    logging.warning(f"{label}: exception: {e}")
+                    raise  # Important: propagate to cancel other pipe!
                 finally:
+                    logging.info(f"{label}: closing destination")
                     dst.close()
                     await dst.wait_closed()
 
             await asyncio.gather(
-                pipe(reader, target_writer, "client → target"),
-                pipe(target_reader, writer, "target → client"),
+                pipe(reader, target_writer, "client → server"),
+                pipe(target_reader, writer, "server → client"),
+                return_exceptions=False,  # Fail fast if one breaks
             )
 
         except Exception as e:
@@ -98,4 +102,5 @@ class NetworkBridge:
         sock = writer.get_extra_info("socket")
         if sock:
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            logging.debug(f"TCP_NODELAY set for {sock.getsockname()}")
+            value = sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY)
+            logging.debug(f"Set TCP_NODELAY: {value} on {sock.getsockname()}")
