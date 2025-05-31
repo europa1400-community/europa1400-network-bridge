@@ -26,7 +26,7 @@ def main(
     ),
     gilde_port: Optional[int] = typer.Option(None, help="Port the game listens on"),
     target: Optional[str] = typer.Option(None, help="Target IP to connect to"),
-    is_server: bool = typer.Option(False, help="Run in server mode"),
+    is_server: Optional[bool] = typer.Option(None, help="Run in server mode"),
     config: str = typer.Option("config.json", help="Path to config file"),
 ) -> None:
     """Run the bridge in CLI mode (default)."""
@@ -43,7 +43,8 @@ def main(
         config_data.gilde_port = gilde_port
     if target is not None:
         config_data.target = target
-    config_data.is_server = is_server
+    if is_server is not None:
+        config_data.is_server = is_server
 
     asyncio.run(NetworkBridge(config_data).run())
 
