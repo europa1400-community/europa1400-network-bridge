@@ -10,20 +10,22 @@ from europa1400_network_bridge.config import Config
 class NetworkBridge:
     def __init__(self, config: Config) -> None:
         self.config = config
-        self._should_run = True
 
     def _determine_ports_and_address(self) -> Tuple[str, int, str, int]:
         if self.config.is_server:
-            listen_host = "0.0.0.0"
-            listen_port = self.config.network_bridge_port
-            target_host = "127.0.0.1"
-            target_port = self.config.gilde_port
+            return (
+                "0.0.0.0",
+                self.config.network_bridge_port,
+                "127.0.0.1",
+                self.config.gilde_port,
+            )
         else:
-            listen_host = "127.0.0.1"
-            listen_port = self.config.gilde_port
-            target_host = self.config.target
-            target_port = self.config.network_bridge_port
-        return listen_host, listen_port, target_host, target_port
+            return (
+                "127.0.0.1",
+                self.config.gilde_port,
+                self.config.target,
+                self.config.network_bridge_port,
+            )
 
     async def run(self) -> None:
         listen_host, listen_port, target_host, target_port = (
@@ -42,12 +44,8 @@ class NetworkBridge:
             f"Bridge running in {mode} mode. Listening on {addrs}, forwarding to {target_host}:{target_port}"
         )
 
-        try:
-            async with server:
-                await server.serve_forever()
-        except asyncio.CancelledError:
-            logging.info("Bridge shutdown requested.")
-            raise
+        async with server:
+            await server.serve_forever()
 
     async def _handle_connection(
         self,
@@ -58,7 +56,7 @@ class NetworkBridge:
     ) -> None:
         peername = writer.get_extra_info("peername")
         logging.info(
-            f"Incoming connection from {peername} -> forwarding to {target_host}:{target_port}"
+            f"Incoming connection from {peername} → {target_host}:{target_port}"
         )
 
         try:
@@ -69,32 +67,30 @@ class NetworkBridge:
             self._disable_nagle(writer)
             self._disable_nagle(target_writer)
 
-            async def pipe(
-                src_reader: StreamReader, dest_writer: StreamWriter, direction: str
-            ):
+            async def pipe(src: StreamReader, dst: StreamWriter, label: str):
                 try:
                     while True:
-                        data = await src_reader.read(8192)
+                        data = await src.read(8192)
                         if not data:
-                            logging.info(f"{direction}: connection closed")
+                            logging.info(f"{label}: EOF")
                             break
-                        dest_writer.write(data)
-                        await dest_writer.drain()
+                        dst.write(data)
+                        await dst.drain()
                 except Exception as e:
-                    logging.warning(f"{direction} pipe error: {e}")
+                    logging.warning(f"{label}: error: {e}")
                 finally:
-                    dest_writer.close()
-                    await dest_writer.wait_closed()
+                    dst.close()
+                    await dst.wait_closed()
 
             await asyncio.gather(
-                pipe(reader, target_writer, "client_to_target"),
-                pipe(target_reader, writer, "target_to_client"),
+                pipe(reader, target_writer, "client → target"),
+                pipe(target_reader, writer, "target → client"),
             )
 
         except Exception as e:
-            logging.error(f"Connection error: {e}")
+            logging.error(f"Bridge error: {e}")
         finally:
-            logging.info("Connection fully closed.")
+            logging.info("Connection closed.")
             writer.close()
             await writer.wait_closed()
 
@@ -102,3 +98,4 @@ class NetworkBridge:
         sock = writer.get_extra_info("socket")
         if sock:
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            logging.debug(f"TCP_NODELAY set for {sock.getsockname()}")
