@@ -70,16 +70,17 @@ class NetworkBridge:
             async def pipe(src: StreamReader, dst: StreamWriter, label: str):
                 try:
                     while True:
-                        data = await src.read(8192)
+                        data = await src.read(1024)
                         if not data:
                             logging.info(f"{label}: EOF from source")
                             break
                         logging.debug(f"{label}: forwarding {len(data)} bytes")
                         dst.write(data)
                         await dst.drain()
+                        await asyncio.sleep(0.001)  # Simulate PSH flush timing
                 except Exception as e:
                     logging.warning(f"{label}: exception: {e}")
-                    raise  # Important: propagate to cancel other pipe!
+                    raise
                 finally:
                     logging.info(f"{label}: closing destination")
                     dst.close()
@@ -88,7 +89,7 @@ class NetworkBridge:
             await asyncio.gather(
                 pipe(reader, target_writer, "client → server"),
                 pipe(target_reader, writer, "server → client"),
-                return_exceptions=False,  # Fail fast if one breaks
+                return_exceptions=False,
             )
 
         except Exception as e:
@@ -102,5 +103,4 @@ class NetworkBridge:
         sock = writer.get_extra_info("socket")
         if sock:
             sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            value = sock.getsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY)
-            logging.debug(f"Set TCP_NODELAY: {value} on {sock.getsockname()}")
+            logging.debug(f"Set TCP_NODELAY: 1 on {sock.getsockname()}")
